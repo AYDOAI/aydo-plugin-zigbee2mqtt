@@ -1,0 +1,107 @@
+{
+  "name": "zigbee2mqtt",
+  "type": 1,
+  "icon": "hub",
+  "class_name": "zigbee2mqtt",
+  "module": "zigbee2mqtt",
+  "manufacturer": "Zigbee2mqtt",
+  "mac_address": false,
+  "support_autoupdate": false,
+  "dynamic_capabilities": true,
+  "connect_config": true,
+  "disable_display_sort": true,
+  "display_model": "",
+  "units": {
+    "hPa": "0.1",
+    "mA": 0.001,
+    "mV": 0.001
+  },
+  "commands": [
+    {
+      "command": "push_button_1"
+    },
+    {
+      "command": "push_button_2"
+    }
+  ],
+  "settings": [
+    {
+      "key": "port",
+      "name": "Port",
+      "type": "text"
+    },
+    {
+      "key": "permit_join",
+      "name": "Permit join",
+      "type": "checkbox"
+    },
+    {
+      "key": "mqtt_address",
+      "name": "MQTT Address",
+      "type": "text",
+      "defaultValue": "127.0.0.1"
+    },
+    {
+      "key": "mqtt_user",
+      "name": "MQTT User",
+      "type": "text",
+      "defaultValue": "mqtt-user"
+    },
+    {
+      "key": "mqtt_password",
+      "name": "MQTT Password",
+      "type": "text",
+      "defaultValue": "mqtt-pass"
+    },
+    {
+      "key": "pan_id",
+      "name": "Pan ID",
+      "type": "text",
+      "defaultValue": "0x1a62"
+    },
+    {
+      "key": "ext_pan_id",
+      "name": "Ext Pan ID",
+      "type": "text",
+      "defaultValue": "0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD"
+    },
+    {
+      "key": "channel",
+      "name": "Channel",
+      "type": "text",
+      "defaultValue": "11",
+      "description": "Available channels: 11-26"
+    },
+    {
+      "key": "network_key",
+      "name": "Network key",
+      "type": "text",
+      "defaultValue": "1, 3, 5, 7, 9, 11, 13, 15, 0, 2, 4, 6, 8, 10, 12, 13"
+    }
+  ],
+  "sub_devices": [
+    {
+      "class_name": "zigbee2mqtt.subdevice",
+      "name": "zigbee2mqtt SubDevice",
+      "mac_address": false,
+      "sort_index": 1,
+      "support_autoupdate": false,
+      "dynamic_capabilities": true,
+      "check_last_connect": true,
+      "settings": [
+        {
+          "key": "identifier",
+          "name": "Identifier",
+          "type": "text"
+        }
+      ]
+    }
+  ],
+  "dependencies": {
+    "uri-js": "^4.4.1",
+    "viz.js": "^2.1.2",
+    "zigbee-herdsman": "0.19.0",
+    "zigbee-herdsman-converters": "15.86.1",
+    "zigbee2mqtt-frontend": "0.6.135"
+  }
+}
