@@ -1,5 +1,5 @@
 {
-  "name": "zigbee2mqtt",
+  "name": "Zigbee Coordinator",
   "type": 1,
   "icon": "hub",
   "class_name": "zigbee2mqtt",
@@ -26,16 +26,6 @@
   ],
   "settings": [
     {
-      "key": "port",
-      "name": "Port",
-      "type": "text"
-    },
-    {
-      "key": "permit_join",
-      "name": "Permit join",
-      "type": "checkbox"
-    },
-    {
       "key": "mqtt_address",
       "name": "MQTT Address",
       "type": "text",
@@ -52,37 +42,12 @@
       "name": "MQTT Password",
       "type": "text",
       "defaultValue": "mqtt-pass"
-    },
-    {
-      "key": "pan_id",
-      "name": "Pan ID",
-      "type": "text",
-      "defaultValue": "0x1a62"
-    },
-    {
-      "key": "ext_pan_id",
-      "name": "Ext Pan ID",
-      "type": "text",
-      "defaultValue": "0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD"
-    },
-    {
-      "key": "channel",
-      "name": "Channel",
-      "type": "text",
-      "defaultValue": "11",
-      "description": "Available channels: 11-26"
-    },
-    {
-      "key": "network_key",
-      "name": "Network key",
-      "type": "text",
-      "defaultValue": "1, 3, 5, 7, 9, 11, 13, 15, 0, 2, 4, 6, 8, 10, 12, 13"
     }
   ],
   "sub_devices": [
     {
       "class_name": "zigbee2mqtt.subdevice",
-      "name": "zigbee2mqtt SubDevice",
+      "name": "Zigbee Device",
       "mac_address": false,
       "sort_index": 1,
       "support_autoupdate": false,
