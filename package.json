@@ -14,7 +14,7 @@
     "build": "webpack",
     "debug": "tsc && node ./dist/src/zigbee2mqtt.js"
   },
-  "author": "gapaus",
+  "author": "AYDO",
   "license": "GPL-3.0",
   "bugs": {
     "url": "https://github.com/Koenkk/zigbee2mqtt/issues"

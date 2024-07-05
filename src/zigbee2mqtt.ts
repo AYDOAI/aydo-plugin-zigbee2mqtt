@@ -62,39 +62,36 @@ class Zigbee2mqtt extends baseDriverModule {
     const start = () => {
       return this.updateState(resolve, reject);
     };
-    this.require('mqtt').then((mqtt: any) => {
-      const timeout = setTimeout(() => {
-        this.sendNotify('Zigbee: mosquitto server is unavailable');
-        reject({ignore: true});
-        setTimeout(() => {
-          process.exit();
-        }, 1000);
-      }, 10000);
-      const options: any = {};
-      if (this.params.mqtt_user && this.params.mqtt_password) {
-        options['username'] = this.params.mqtt_user;
-        options['password'] = this.params.mqtt_password;
-      }
-      this.mqtt = mqtt.connect(`mqtt://${this.params.mqtt_address}`, options);
-      this.mqtt.on('connect', () => {
-        this.mqtt.on('disconnect', () => {
-          this.disconnected();
-        });
-        this.mqtt.on('message', (topic: any, message: any) => {
-          this.message(topic, message.toString());
-        });
-        this.mqtt.subscribe('zigbee2mqtt/#', (error: any) => {
-          if (error) {
-            this.app.errorEx(error);
-          }
-        });
-
-        clearTimeout(timeout);
-        this.connected();
-        start();
+    const mqtt = require('mqtt');
+    const timeout = setTimeout(() => {
+      this.sendNotify('Zigbee: mosquitto server is unavailable');
+      reject({ignore: true});
+      setTimeout(() => {
+        process.exit();
+      }, 1000);
+    }, 10000);
+    const options: any = {};
+    if (this.params.mqtt_user && this.params.mqtt_password) {
+      options['username'] = this.params.mqtt_user;
+      options['password'] = this.params.mqtt_password;
+    }
+    this.mqtt = mqtt.connect(`mqtt://${this.params.mqtt_address}`, options);
+    this.mqtt.on('connect', () => {
+      this.mqtt.on('disconnect', () => {
+        this.disconnected();
       });
-    }).catch((error: any) => {
-      reject(error);
+      this.mqtt.on('message', (topic: any, message: any) => {
+        this.message(topic, message.toString());
+      });
+      this.mqtt.subscribe('zigbee2mqtt/#', (error: any) => {
+        if (error) {
+          this.app.errorEx(error);
+        }
+      });
+
+      clearTimeout(timeout);
+      this.connected();
+      start();
     });
   }
 

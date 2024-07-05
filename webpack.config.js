@@ -14,8 +14,7 @@ module.exports = {
   },
   externals: [
     function ({context, request}, callback) {
-      if (["zigbee-herdsman-converters", "svg2img", "viz.js"
-      ].indexOf(request) !== -1) {
+      if (["zigbee-herdsman-converters", "svg2img", "viz.js"].indexOf(request) !== -1) {
         return callback(null, `require('${request}')`);
       }
       callback();
