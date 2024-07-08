@@ -23,10 +23,10 @@ class Zigbee2mqtt extends baseDriverModule {
     super.initDeviceEx(() => {
       this.capabilities = [];
       this.capabilities.push({ident: 'power', display_name: 'Add Zigbee Device', options: {link_devices: true}});
-      this.capabilities.push({ident: 'push_button', index: '2', display_name: 'Refresh network map'});
+      // this.capabilities.push({ident: 'push_button', index: '2', display_name: 'Refresh network map'});
       this.capabilities.push({ident: 'text', index: '1', display_name: 'Online devices'});
       this.capabilities.push({ident: 'text', index: '2', display_name: 'Offline devices'});
-      this.capabilities.push({ident: 'image', index: '1'});
+      // this.capabilities.push({ident: 'image', index: '1'});
       try {
         this.converters = require('zigbee-herdsman-converters');
       } catch (e) {
@@ -63,36 +63,36 @@ class Zigbee2mqtt extends baseDriverModule {
       return this.updateState(resolve, reject);
     };
     const mqtt = require('mqtt');
-    const timeout = setTimeout(() => {
-      this.sendNotify('Zigbee: mosquitto server is unavailable');
-      reject({ignore: true});
-      setTimeout(() => {
-        process.exit();
-      }, 1000);
-    }, 10000);
-    const options: any = {};
-    if (this.params.mqtt_user && this.params.mqtt_password) {
-      options['username'] = this.params.mqtt_user;
-      options['password'] = this.params.mqtt_password;
-    }
-    this.mqtt = mqtt.connect(`mqtt://${this.params.mqtt_address}`, options);
-    this.mqtt.on('connect', () => {
-      this.mqtt.on('disconnect', () => {
-        this.disconnected();
-      });
-      this.mqtt.on('message', (topic: any, message: any) => {
-        this.message(topic, message.toString());
-      });
-      this.mqtt.subscribe('zigbee2mqtt/#', (error: any) => {
-        if (error) {
-          this.app.errorEx(error);
-        }
-      });
+      const timeout = setTimeout(() => {
+        this.sendNotify('Zigbee: mosquitto server is unavailable');
+        reject({ignore: true});
+        setTimeout(() => {
+          process.exit();
+        }, 1000);
+      }, 10000);
+      const options: any = {};
+      if (this.params.mqtt_user && this.params.mqtt_password) {
+        options['username'] = this.params.mqtt_user;
+        options['password'] = this.params.mqtt_password;
+      }
+      this.mqtt = mqtt.connect(`mqtt://${this.params.mqtt_address}`, options);
+      this.mqtt.on('connect', () => {
+        this.mqtt.on('disconnect', () => {
+          this.disconnected();
+        });
+        this.mqtt.on('message', (topic: any, message: any) => {
+          this.message(topic, message.toString());
+        });
+        this.mqtt.subscribe('zigbee2mqtt/#', (error: any) => {
+          if (error) {
+            this.app.errorEx(error);
+          }
+        });
 
-      clearTimeout(timeout);
-      this.connected();
-      start();
-    });
+        clearTimeout(timeout);
+        this.connected();
+        start();
+      });
   }
 
   sort() {
@@ -273,7 +273,7 @@ class Zigbee2mqtt extends baseDriverModule {
                 } else {
                   cap.display_name = availability.ident;
                 }
-                this.capabilities.push(cap);
+                // this.capabilities.push(cap);
               }
               status[`power_${index + 1}`] = availability.online;
             });
@@ -1067,6 +1067,7 @@ class Zigbee2mqtt extends baseDriverModule {
           if (this.pluginTemplate && this.pluginTemplate.units && this.pluginTemplate.units[feature.unit]) {
             capability.scale = this.pluginTemplate.units[feature.unit];
           } else {
+            capability.unit = feature.unit;
           }
         }
         if (ident) {
