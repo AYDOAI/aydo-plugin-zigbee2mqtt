@@ -55,6 +55,12 @@
       "check_last_connect": true,
       "settings": [
         {
+          "key": "pair_mode",
+          "name": "Pair mode",
+          "description": "Your controller is in pair device mode. Use your device's instructions to add it.",
+          "type": "button"
+        },
+        {
           "key": "identifier",
           "name": "Identifier",
           "type": "text"

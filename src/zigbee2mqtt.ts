@@ -113,6 +113,10 @@ class Zigbee2mqtt extends baseDriverModule {
 
   commandEx(command: any, value: any, params: any, options1: any, resolve: any, reject: any) {
     switch (command) {
+      case 'pair_mode':
+        this.mqttPublish('zigbee2mqtt/bridge/request/permit_join', 'true');
+        resolve({});
+        break;
       case 'update_settings':
         resolve({});
         break;
