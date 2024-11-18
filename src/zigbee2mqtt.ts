@@ -412,10 +412,10 @@ class Zigbee2mqtt extends baseDriverModule {
     switch (payload.type) {
       case 'device_announce':
       case 'device_announced':
-        msg = `Device ${payload.message.friendly_name} announced`;
+        msg = `Device ${payload.data ? payload.data.friendly_name : ''} announced`;
         break;
       case 'device_connected':
-        msg = `Device ${payload.message.friendly_name} connected`;
+        msg = `Device ${payload.data ? payload.data.friendly_name : ''} connected`;
         break;
       case 'device_leave':
         msg = `Device ${payload.data ? payload.data.friendly_name : ''} leave`;
@@ -492,8 +492,7 @@ class Zigbee2mqtt extends baseDriverModule {
           if (model === 'RR620ZB') {
             model = 'MG-ZG02W'
           }
-          const deviceTemplate = this.converters.devices.find((item: any) => item.model === model ||
-            (item.whiteLabel && item.whiteLabel.find((item1: any) => item1.model === model)));
+          const deviceTemplate = this.converters.findByModel(model);
           this.parseDevice(identifier, device, deviceTemplate);
         }
       });
