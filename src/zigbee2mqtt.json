@@ -29,7 +29,8 @@
       "key": "mqtt_address",
       "name": "MQTT Address",
       "type": "text",
-      "defaultValue": "127.0.0.1"
+      "defaultValue": "127.0.0.1",
+      "unique": true
     },
     {
       "key": "mqtt_user",
