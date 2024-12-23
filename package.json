@@ -86,7 +86,9 @@
     "ts-loader": "^9.2.6",
     "typescript": "^5.2.2",
     "webpack": "^5.72.1",
-    "webpack-cli": "^4.9.2"
+    "webpack-cli": "^4.9.2",
+    "ts-node": "^10.3.0",
+    "tsconfig-paths": "^3.11.0"
   },
   "jest": {
     "coverageThreshold": {
