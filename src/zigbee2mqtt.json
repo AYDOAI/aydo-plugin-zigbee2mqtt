@@ -26,6 +26,12 @@
   ],
   "settings": [
     {
+      "key": "port",
+      "name": "Zigbee Device",
+      "type": "select",
+      "items": []
+    },
+    {
       "key": "mqtt_address",
       "name": "MQTT Address",
       "type": "text",

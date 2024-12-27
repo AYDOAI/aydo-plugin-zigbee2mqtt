@@ -1,14 +1,12 @@
 {
   "compilerOptions": {
-    "allowSyntheticDefaultImports": true,
     "module": "commonjs",
     "esModuleInterop": true,
-    "target": "ES2022",
+    "target": "es2018",
     "lib": [
-      "ES2022"
+      "es2018"
     ],
-    "strict": true,
-    "noImplicitAny": false,
+    "noImplicitAny": true,
     "noImplicitThis": true,
     "moduleResolution": "node",
     "declaration": true,
@@ -16,7 +14,7 @@
     "outDir": "dist",
     "baseUrl": ".",
     "allowJs": true,
-    "checkJs": false,
+    "rootDir": ".",
     "inlineSourceMap": true,
     "resolveJsonModule": true,
     "experimentalDecorators": true
@@ -25,8 +23,5 @@
     "src/**/*.ts",
     "lib/**/*",
     "lib/util/settings.schema.json"
-  ],
-  "exclude": [
-    "node_modules"
   ]
 }

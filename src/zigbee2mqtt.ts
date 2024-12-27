@@ -19,11 +19,20 @@ class Zigbee2mqtt extends baseDriverModule {
   availabilityTimeout: any;
 
   initDeviceEx(resolve: any, reject: any) {
+    if (this.logging) {
+      this.log('initDeviceEx-try', 1);
+    }
+
     if (this.device) {
       this.app.log('initDeviceEx already done');
       return resolve({});
     }
+
     super.initDeviceEx(() => {
+      if (this.logging) {
+        this.log('initDeviceEx-try', 2);
+      }
+
       this.capabilities = [];
       this.capabilities.push({
         ident: 'power',
@@ -50,6 +59,14 @@ class Zigbee2mqtt extends baseDriverModule {
       } catch (e) {
         this.app.errorEx(e);
       }
+
+      settings.set(['permit_join'], false);
+      settings.set(['homeassistant'], false);
+      // settings.set(['frontend'], true);
+      settings.set(['mqtt', 'base_topic'], 'zigbee2mqtt');
+      settings.set(['mqtt', 'server'], 'mqtt://localhost');
+      settings.set(['serial', 'port'], '/dev/ttyUSB0');
+
       let config: any;
       try {
         config = settings.get();
@@ -62,12 +79,11 @@ class Zigbee2mqtt extends baseDriverModule {
 
         }
         fs.writeFileSync(file, 'homeassistant: false');
-        settings.set(['permit_join'], false);
-        settings.set(['mqtt', 'base_topic'], 'zigbee2mqtt');
-        settings.set(['mqtt', 'server'], 'mqtt://localhost');
-        settings.set(['serial', 'port'], '/dev/ttyACM0');
         config = settings.get();
       }
+
+      console.log('***zigbee2mqtt-config*********************');
+      console.log(config);
 
       if (!config.advanced || config.advanced.last_seen !== 'epoch') {
         settings.set(['advanced', 'last_seen'], 'epoch');
@@ -144,6 +160,10 @@ class Zigbee2mqtt extends baseDriverModule {
   }
 
   connectEx(resolve1: any, reject1: any) {
+    if (this.logging) {
+      this.log('connectEx-try', 1);
+    }
+
     if (this.mqtt) {
       this.app.log('connectEx already done');
       if (this.mqtt.connected) {
@@ -152,6 +172,11 @@ class Zigbee2mqtt extends baseDriverModule {
         return reject1({});
       }
     }
+
+    if (this.logging) {
+      this.log('connectEx-try', 2);
+    }
+
     let done = false;
     const resolve = (data: any) => {
       if (!done) {
@@ -165,12 +190,22 @@ class Zigbee2mqtt extends baseDriverModule {
         reject1(error);
       }
     };
+
+    if (this.logging) {
+      this.log('connectEx-try', 3, this.params);
+    }
+
     const start = () => {
+      if (this.logging) {
+        this.log('connectEx-start-1', this.params);
+      }
+
       if (this.params.port) {
         try {
           this.device.start().then(() => {
             this.updateState(resolve, reject);
           }).catch((error: any) => {
+            console.log(error);
             this.sendNotify(`Zigbee: ${error.message}`);
             reject(error);
           });
@@ -182,39 +217,42 @@ class Zigbee2mqtt extends baseDriverModule {
         return this.updateState(resolve, reject);
       }
     };
-    this.require('mqtt').then((mqtt: any) => {
-      const timeout = setTimeout(() => {
-        this.sendNotify('Zigbee: mosquitto server is unavailable');
-        reject({ignore: true});
-        setTimeout(() => {
-          process.exit();
-        }, 1000);
-      }, 10000);
-      const options: any = {};
-      if (this.params.mqtt_user && this.params.mqtt_password) {
-        options['username'] = this.params.mqtt_user;
-        options['password'] = this.params.mqtt_password;
-      }
-      this.mqtt = mqtt.connect(`mqtt://${this.params.mqtt_address}`, options);
-      this.mqtt.on('connect', () => {
-        this.mqtt.on('disconnect', () => {
-          this.disconnected();
-        });
-        this.mqtt.on('message', (topic: any, message: any) => {
-          this.message(topic, message.toString());
-        });
-        this.mqtt.subscribe('zigbee2mqtt/#', (error: any) => {
-          if (error) {
-            this.app.errorEx(error);
-          }
-        });
 
-        clearTimeout(timeout);
-        this.connected();
-        start();
+    const mqtt = require('mqtt');
+
+    if (this.logging) {
+      this.log('connectEx-start-2', this.params);
+    }
+
+    const timeout = setTimeout(() => {
+      this.sendNotify('Zigbee: mosquitto server is unavailable');
+      reject({ignore: true});
+      setTimeout(() => {
+        process.exit();
+      }, 1000);
+    }, 10000);
+    const options: any = {};
+    if (this.params.mqtt_user && this.params.mqtt_password) {
+      options['username'] = this.params.mqtt_user;
+      options['password'] = this.params.mqtt_password;
+    }
+    this.mqtt = mqtt.connect(`mqtt://${this.params.mqtt_address}`, options);
+    this.mqtt.on('connect', () => {
+      this.mqtt.on('disconnect', () => {
+        this.disconnected();
       });
-    }).catch((error: any) => {
-      reject(error);
+      this.mqtt.on('message', (topic: any, message: any) => {
+        this.message(topic, message.toString());
+      });
+      this.mqtt.subscribe('zigbee2mqtt/#', (error: any) => {
+        if (error) {
+          this.app.errorEx(error);
+        }
+      });
+
+      clearTimeout(timeout);
+      this.connected();
+      start();
     });
   }
 
