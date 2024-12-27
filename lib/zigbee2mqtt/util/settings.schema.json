@@ -40,12 +40,6 @@
                             "description": "Home Assistant status topic",
                             "requiresRestart": true,
                             "examples": ["homeassistant/status"]
-                        },
-                        "experimental_event_entities": {
-                            "type": "boolean",
-                            "title": "Home Assistant experimental event entities",
-                            "description": "Home Assistant experimental event entities, when enabled Zigbee2MQTT will add event entities for exposed actions. The events and attributes are currently deemed experimental and subject to change.",
-                            "default": false
                         }
                     }
                 }
@@ -523,7 +517,7 @@
                     "title": "Log Namespaced Levels",
                     "description": "Set individual log levels for certain namespaces",
                     "default": {},
-                    "examples": [{"z2m:mqtt": "warning"}, {"zh:ember:uart:ash": "info"}]
+                    "examples": [{ "z2m:mqtt": "warning" }, { "zh:ember:uart:ash": "info" }]
                 },
                 "log_debug_to_mqtt_frontend": {
                     "type": "boolean",

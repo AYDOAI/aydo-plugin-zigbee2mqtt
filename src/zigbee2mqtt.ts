@@ -38,9 +38,12 @@ class Zigbee2mqtt extends baseDriverModule {
       let settings: any;
       try {
         settings = require('../lib/zigbee2mqtt/util/settings');
-      } catch (e) {
+      } catch (e: unknown) {
         this.app.errorEx(e);
-        throw new Error(e);
+
+        if (e instanceof Error) {
+          throw new Error(e.message);
+        }
       }
       try {
         this.converters = require('zigbee-herdsman-converters');
@@ -73,7 +76,7 @@ class Zigbee2mqtt extends baseDriverModule {
         settings.set(['advanced', 'availability_timeout'], 1200);
       }
 
-      const check = (param: string, value: any, arr: string[], number: boolean = undefined, array: boolean = undefined, force = false) => {
+      const check = (param: string, value: any, arr: string[], number: boolean | undefined = undefined, array: boolean | undefined = undefined, force = false) => {
         if (this.params[param] || force) {
           let value1: any;
           if (value !== undefined) {
@@ -494,8 +497,8 @@ class Zigbee2mqtt extends baseDriverModule {
                   }
                 });
 
-                graphVizToImgBuffer(graph).then((buffer: string) => {
-                  let b64 = Buffer.from(buffer).toString('base64');
+                graphVizToImgBuffer(graph).then((buffer: unknown) => {
+                  let b64 = Buffer.from(buffer as string).toString('base64');
                   // fs.writeFileSync("test.png", b64, 'base64')
                   // const device = this.devices.find((item) => item.identifier === ident);
                   // if (device) {
@@ -1591,7 +1594,7 @@ class Zigbee2mqtt extends baseDriverModule {
         });
       }
       if (capabilities.length && identifier) {
-        const add = (identifier: string, capabilities: any, parent_identifier: string = null, child_name: string = null) => {
+        const add = (identifier: string, capabilities: any, parent_identifier: string | null = null, child_name: string | null = null) => {
           const params: any = {
             icon,
             identifier,
