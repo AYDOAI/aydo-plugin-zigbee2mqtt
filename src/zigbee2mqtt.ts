@@ -20,7 +20,7 @@ class Zigbee2mqtt extends baseDriverModule {
 
   initDeviceEx(resolve: any, reject: any) {
     if (this.logging) {
-      this.log('initDeviceEx-try', 1);
+      this.log('initDeviceEx-try', this.params);
     }
 
     if (this.device) {
@@ -29,14 +29,10 @@ class Zigbee2mqtt extends baseDriverModule {
     }
 
     super.initDeviceEx(() => {
-      if (this.logging) {
-        this.log('initDeviceEx-try', 2);
-      }
-
       this.capabilities = [];
       this.capabilities.push({
         ident: 'power',
-        display_name: 'Добавить Zigbee устройство',
+        display_name: 'Add Zigbee device',
         options: {link_devices: true}
       });
       this.capabilities.push({ident: 'push_button', index: '2', display_name: 'Refresh network map'});
@@ -44,7 +40,9 @@ class Zigbee2mqtt extends baseDriverModule {
       this.capabilities.push({ident: 'text', index: '1', display_name: 'Online devices'});
       this.capabilities.push({ident: 'text', index: '2', display_name: 'Offline devices'});
       this.capabilities.push({ident: 'image', index: '1'});
+
       let settings: any;
+
       try {
         settings = require('../lib/zigbee2mqtt/util/settings');
       } catch (e: unknown) {
@@ -54,36 +52,50 @@ class Zigbee2mqtt extends baseDriverModule {
           throw new Error(e.message);
         }
       }
+
       try {
         this.converters = require('zigbee-herdsman-converters');
       } catch (e) {
         this.app.errorEx(e);
       }
 
-      settings.set(['permit_join'], false);
-      settings.set(['homeassistant'], false);
-      // settings.set(['frontend'], true);
-      settings.set(['mqtt', 'base_topic'], 'zigbee2mqtt');
-      settings.set(['mqtt', 'server'], 'mqtt://localhost');
-      settings.set(['serial', 'port'], '/dev/ttyUSB0');
-
       let config: any;
+
       try {
         config = settings.get();
       } catch (e) {
         const data = require('../lib/zigbee2mqtt/util/data');
         const file = data.default.joinPath('configuration.yaml');
+
         try {
           fs.mkdirSync(data.default.joinPath(''), {});
-        } catch (e) {
+        } catch (e) { }
 
-        }
         fs.writeFileSync(file, 'homeassistant: false');
+
+        settings.set(['permit_join'], false);
+        // settings.set(['homeassistant'], false);
+        settings.set(['frontend'], true);
+        settings.set(['mqtt', 'base_topic'], 'zigbee2mqtt');
+        settings.set(['mqtt', 'server'], 'mqtt://localhost');
+
+        if (this.params.port) {
+          if (this.logging) {
+            this.log('initDeviceEx-try', 'checkpoint set port', this.params.port);
+          }
+
+          settings.set(['serial', 'port'], this.params.port);
+          const adapter = this.getAdapterByPort(this.params.port);
+          
+          if (adapter) {
+            settings.set(['serial', 'adapter'], adapter);
+          }
+        } else {
+          settings.set(['serial', 'port'], '/dev/ttyUSB0');
+        }
+
         config = settings.get();
       }
-
-      console.log('***zigbee2mqtt-config*********************');
-      console.log(config);
 
       if (!config.advanced || config.advanced.last_seen !== 'epoch') {
         settings.set(['advanced', 'last_seen'], 'epoch');
@@ -120,9 +132,11 @@ class Zigbee2mqtt extends baseDriverModule {
           this.app.log(`Parameter ${param} is not defined`)
         }
       };
+
       if (!this.params.permit_join) {
         this.params.permit_join = false;
       }
+
       check('permit_join', undefined, ['permit_join'], undefined, undefined, true);
       check('port', undefined, ['serial', 'port']);
       check('adapter', undefined, ['serial', 'adapter']);
@@ -141,6 +155,7 @@ class Zigbee2mqtt extends baseDriverModule {
       } catch (e) {
         this.app.errorEx(e);
       }
+
       try {
         this.app.log('Loading controller');
         const Controller = require('../lib/zigbee2mqtt/controller');
@@ -160,10 +175,6 @@ class Zigbee2mqtt extends baseDriverModule {
   }
 
   connectEx(resolve1: any, reject1: any) {
-    if (this.logging) {
-      this.log('connectEx-try', 1);
-    }
-
     if (this.mqtt) {
       this.app.log('connectEx already done');
       if (this.mqtt.connected) {
@@ -171,10 +182,6 @@ class Zigbee2mqtt extends baseDriverModule {
       } else {
         return reject1({});
       }
-    }
-
-    if (this.logging) {
-      this.log('connectEx-try', 2);
     }
 
     let done = false;
@@ -191,15 +198,7 @@ class Zigbee2mqtt extends baseDriverModule {
       }
     };
 
-    if (this.logging) {
-      this.log('connectEx-try', 3, this.params);
-    }
-
     const start = () => {
-      if (this.logging) {
-        this.log('connectEx-start-1', this.params);
-      }
-
       if (this.params.port) {
         try {
           this.device.start().then(() => {
@@ -219,10 +218,6 @@ class Zigbee2mqtt extends baseDriverModule {
     };
 
     const mqtt = require('mqtt');
-
-    if (this.logging) {
-      this.log('connectEx-start-2', this.params);
-    }
 
     const timeout = setTimeout(() => {
       this.sendNotify('Zigbee: mosquitto server is unavailable');
@@ -1701,6 +1696,62 @@ class Zigbee2mqtt extends baseDriverModule {
 
   deleteDevice(params: any) {
     this.mqttPublish('zigbee2mqtt/bridge/request/device/remove', {id: params.identifier, force: true});
+  }
+
+  searchSerialDevices(keywords: string[]) {
+    const fs = require('fs');
+    const path = require('path');
+    const directory = '/dev/serial/by-id';
+
+    const devices: any = [];
+
+    try {
+      const files = fs.readdirSync(directory);
+      files.forEach((file: any) => {
+        const linkPath = path.join(directory, file);
+        try {
+          let realPath = fs.readlinkSync(linkPath);
+          realPath = realPath.replace(/..\/../g, '/dev');
+          const formattedDeviceName = file.replace(/_/g, ' ');
+          if (keywords.some(keyword => formattedDeviceName.includes(keyword))) {
+            devices.push({
+              id: realPath,
+              title: formattedDeviceName
+            });
+          }
+        } catch (error) {
+          console.error(`Error processing symbolic link: ${linkPath}`);
+        }
+      });
+    } catch (err) {
+      console.error(`Error reading directory: ${directory}`);
+    }
+
+    console.log('***Serial-Devices***');
+    console.log(devices);
+
+    return devices;
+  }
+
+  getAdapterByPort(port: string) {
+    const devices = this.searchSerialDevices(['Zigbee', 'Dongle']);
+    const device = devices.find((item: any) => item.id === port);
+    if (device) {
+      this.log('getAdapterByPort', 'device', port, device);
+
+      const ember_substrings = ["Sonoff", "Zigbee", "Dongle", "V2"];
+      const check_ember = ember_substrings.every(substring => device.title.includes(substring));
+
+      if (this.logging) {
+        this.log('getAdapterByPort', 'check_ember', check_ember);
+      }
+
+      if (check_ember) {
+        return 'ember';
+      }
+    }
+
+    return null;
   }
 }
 
