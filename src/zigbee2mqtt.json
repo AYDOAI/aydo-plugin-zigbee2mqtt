@@ -29,7 +29,8 @@
       "key": "port",
       "name": "Zigbee Device",
       "type": "select",
-      "items": []
+      "items": [],
+      "required": true
     },
     {
       "key": "mqtt_address",
