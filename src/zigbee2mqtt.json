@@ -53,7 +53,8 @@
     {
       "key": "location",
       "name": "Location",
-      "type": "google-map"
+      "type": "google-map",
+      "required": true
     }
   ],
   "sub_devices": [
