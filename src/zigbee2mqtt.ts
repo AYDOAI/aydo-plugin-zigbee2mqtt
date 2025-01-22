@@ -1,6 +1,9 @@
-import {inspect} from 'util';
 import {baseDriverModule} from '../core/base-driver-module';
+import {inspect} from 'util';
+import * as fs from 'fs';
 import {ColorConverter} from '../lib/color-converter';
+
+const moment = require('moment');
 
 class Zigbee2mqtt extends baseDriverModule {
   mqtt: any;
@@ -16,23 +19,157 @@ class Zigbee2mqtt extends baseDriverModule {
   availabilityTimeout: any;
 
   initDeviceEx(resolve: any, reject: any) {
+    if (this.logging) {
+      this.log('initDeviceEx-try', this.params);
+    }
+
     if (this.device) {
       this.app.log('initDeviceEx already done');
       return resolve({});
     }
+
     super.initDeviceEx(() => {
       this.capabilities = [];
-      this.capabilities.push({ident: 'power', display_name: 'Add Zigbee Device', options: {link_devices: true}});
-      // this.capabilities.push({ident: 'push_button', index: '2', display_name: 'Refresh network map'});
+      this.capabilities.push({
+        ident: 'power',
+        display_name: 'Add Zigbee device',
+        options: {link_devices: true}
+      });
+      this.capabilities.push({ident: 'push_button', index: '2', display_name: 'Refresh network map'});
+      // result['capabilities'].push({ident: 'push_button', index: '2', display_name: 'Exclude device'});
       this.capabilities.push({ident: 'text', index: '1', display_name: 'Online devices'});
       this.capabilities.push({ident: 'text', index: '2', display_name: 'Offline devices'});
-      // this.capabilities.push({ident: 'image', index: '1'});
+      this.capabilities.push({ident: 'image', index: '1'});
+
+      let settings: any;
+
+      try {
+        settings = require('../lib/zigbee2mqtt/util/settings');
+      } catch (e: unknown) {
+        this.app.errorEx(e);
+
+        if (e instanceof Error) {
+          throw new Error(e.message);
+        }
+      }
+
       try {
         this.converters = require('zigbee-herdsman-converters');
       } catch (e) {
         this.app.errorEx(e);
       }
-      this.device = {};
+
+      let config: any;
+
+      try {
+        config = settings.get();
+      } catch (e) {
+        const data = require('../lib/zigbee2mqtt/util/data');
+        const file = data.default.joinPath('configuration.yaml');
+
+        try {
+          fs.mkdirSync(data.default.joinPath(''), {});
+        } catch (e) { }
+
+        fs.writeFileSync(file, 'homeassistant: false');
+
+        settings.set(['permit_join'], false);
+        // settings.set(['homeassistant'], false);
+        settings.set(['frontend'], true);
+        settings.set(['mqtt', 'base_topic'], 'zigbee2mqtt');
+        settings.set(['mqtt', 'server'], 'mqtt://localhost');
+
+        if (this.params.port) {
+          if (this.logging) {
+            this.log('initDeviceEx-try', 'checkpoint set port', this.params.port);
+          }
+
+          settings.set(['serial', 'port'], this.params.port);
+          const adapter = this.getAdapterByPort(this.params.port);
+          
+          if (adapter) {
+            settings.set(['serial', 'adapter'], adapter);
+          }
+        } else {
+          settings.set(['serial', 'port'], '/dev/ttyUSB0');
+        }
+
+        config = settings.get();
+      }
+
+      if (!config.advanced || config.advanced.last_seen !== 'epoch') {
+        settings.set(['advanced', 'last_seen'], 'epoch');
+      }
+      if (!config.advanced || !config.advanced.availability_timeout) {
+        settings.set(['advanced', 'availability_timeout'], 1200);
+      }
+
+      const check = (param: string, value: any, arr: string[], number: boolean | undefined = undefined, array: boolean | undefined = undefined, force = false) => {
+        if (this.params[param] || force) {
+          let value1: any;
+          if (value !== undefined) {
+            value1 = value;
+          } else {
+            value1 = this.params[param];
+          }
+          const value2 = arr.length === 1 ? config[arr[0]] : config[arr[0]][arr[1]];
+          if (array) {
+            value1 = value1.replace(/\s/g, '');
+            value1 = value1.split(',')
+            if (number) {
+              value1 = value1.map((item: any) => parseInt(item))
+            }
+          } else if (number) {
+            value1 = parseInt(value1)
+          }
+          if (value1 !== value2) {
+            this.app.log(param, 'diff', value1, value2, typeof value1);
+            settings.set(arr, value1);
+          } else {
+            this.app.log(param, 'same', value1, value2);
+          }
+        } else {
+          this.app.log(`Parameter ${param} is not defined`)
+        }
+      };
+
+      if (!this.params.permit_join) {
+        this.params.permit_join = false;
+      }
+
+      check('permit_join', undefined, ['permit_join'], undefined, undefined, true);
+      check('port', undefined, ['serial', 'port']);
+      check('adapter', undefined, ['serial', 'adapter']);
+      check('pan_id', undefined, ['advanced', 'pan_id'], true);
+      check('ext_pan_id', undefined, ['advanced', 'ext_pan_id'], true, true);
+      check('network_key', undefined, ['advanced', 'network_key'], true, true);
+      check('channel', undefined, ['advanced', 'channel'], true);
+      check('mqtt_address', `mqtt://${this.params.mqtt_address}`, ['mqtt', 'server']);
+      check('mqtt_user', this.params.mqtt_user ? this.params.mqtt_user : 'mqtt-user', ['mqtt', 'user'], undefined, undefined, true);
+      check('mqtt_password', this.params.mqtt_password ? this.params.mqtt_password : 'mqtt-pass', ['mqtt', 'password'], undefined, undefined, true);
+
+      try {
+        const data = require('../lib/zigbee2mqtt/util/data');
+        this.app.log(data.default.joinPath('configuration.yaml'));
+        this.app.log(JSON.stringify(config, null, 2));
+      } catch (e) {
+        this.app.errorEx(e);
+      }
+
+      try {
+        this.app.log('Loading controller');
+        const Controller = require('../lib/zigbee2mqtt/controller');
+        this.app.log('Creating controller');
+        this.device = new Controller(() => {
+          process.exit();
+        }, () => {
+          process.exit();
+        });
+        this.app.log('Done controller');
+      } catch (e) {
+        this.app.errorEx(e);
+        reject(e);
+      }
       resolve({});
     }, reject);
   }
@@ -46,6 +183,7 @@ class Zigbee2mqtt extends baseDriverModule {
         return reject1({});
       }
     }
+
     let done = false;
     const resolve = (data: any) => {
       if (!done) {
@@ -59,51 +197,81 @@ class Zigbee2mqtt extends baseDriverModule {
         reject1(error);
       }
     };
-    const start = () => {
-      return this.updateState(resolve, reject);
-    };
-    const mqtt = require('mqtt');
-      const timeout = setTimeout(() => {
-        this.sendNotify('Zigbee: mosquitto server is unavailable');
-        reject({ignore: true});
-        setTimeout(() => {
-          process.exit();
-        }, 1000);
-      }, 10000);
-      const options: any = {};
-      if (this.params.mqtt_user && this.params.mqtt_password) {
-        options['username'] = this.params.mqtt_user;
-        options['password'] = this.params.mqtt_password;
-      }
-      this.mqtt = mqtt.connect(`mqtt://${this.params.mqtt_address}`, options);
-      this.mqtt.on('connect', () => {
-        this.mqtt.on('disconnect', () => {
-          this.disconnected();
-        });
-        this.mqtt.on('message', (topic: any, message: any) => {
-          this.message(topic, message.toString());
-        });
-        this.mqtt.subscribe('zigbee2mqtt/#', (error: any) => {
-          if (error) {
-            this.app.errorEx(error);
-          }
-        });
 
-        clearTimeout(timeout);
-        this.connected();
-        start();
+    const start = () => {
+      if (this.params.port) {
+        try {
+          this.device.start().then(() => {
+            this.updateState(resolve, reject);
+          }).catch((error: any) => {
+            console.log(error);
+            this.sendNotify(`Zigbee: ${error.message}`);
+            reject(error);
+          });
+        } catch (e) {
+          this.app.errorEx(e);
+          reject(e);
+        }
+      } else {
+        return this.updateState(resolve, reject);
+      }
+    };
+
+    const mqtt = require('mqtt');
+
+    const timeout = setTimeout(() => {
+      this.sendNotify('Zigbee: mosquitto server is unavailable');
+      reject({ignore: true});
+      setTimeout(() => {
+        process.exit();
+      }, 1000);
+    }, 10000);
+    const options: any = {};
+    if (this.params.mqtt_user && this.params.mqtt_password) {
+      options['username'] = this.params.mqtt_user;
+      options['password'] = this.params.mqtt_password;
+    }
+    this.mqtt = mqtt.connect(`mqtt://${this.params.mqtt_address}`, options);
+    this.mqtt.on('connect', () => {
+      this.mqtt.on('disconnect', () => {
+        this.disconnected();
       });
+      this.mqtt.on('message', (topic: any, message: any) => {
+        this.message(topic, message.toString());
+      });
+      this.mqtt.subscribe('zigbee2mqtt/#', (error: any) => {
+        if (error) {
+          this.app.errorEx(error);
+        }
+      });
+
+      clearTimeout(timeout);
+      this.connected();
+      start();
+    });
   }
 
   sort() {
     this.capabilities.sort((a, b) => {
       if (a.ident === 'power' && !a.index) {
-        return a.ident === 'power' ? -1 : 1;
-      } else if (a.ident === 'image' || b.ident === 'image') {
+        return a.ident === 'power' && !a.index ? -1 : 1;
+      } else if (b.ident === 'power' && !b.index) {
+        return b.ident === 'power' && !b.index ? 1 : -1;
+      } else if (a.ident === 'image') {
         return a.ident === 'image' ? -1 : 1;
-      } else if (a.ident === 'push_button' || b.ident === 'push_button') {
+      } else if (b.ident === 'image') {
+        return b.ident === 'image' ? 1 : -1;
+      } else if (a.ident === 'push_button') {
         return a.ident === 'push_button' ? -1 : 1;
-      } else if (a.ident === 'power') {
+      } else if (b.ident === 'push_button') {
+        return b.ident === 'push_button' ? 1 : -1;
+      } else if (a.ident === 'text' && b.ident === 'text') {
+        return a.index.localeCompare(b.index);
+      } else if (a.ident === 'text') {
+        return a.ident === 'text' ? -1 : 1;
+      } else if (b.ident === 'text') {
+        return b.ident === 'text' ? 1 : -1;
+      } else {
         const titleA = `${a.zone_name} (${a.display_name})`;
         const titleB = `${b.zone_name} (${b.display_name})`;
         return titleA.localeCompare(titleB);
@@ -134,6 +302,12 @@ class Zigbee2mqtt extends baseDriverModule {
             const pub = () => {
               const identifier = params.parent_identifier ? params.parent_identifier : params.identifier;
               this.mqttPublish(`zigbee2mqtt/${identifier}/set`, options);
+              setTimeout(() => {
+                Object.keys(options).forEach(key => {
+                  options[key] = '';
+                })
+                this.mqttPublish(`zigbee2mqtt/${identifier}/get`, options);
+              }, 1000);
             };
             if (capability.composite) {
               exists = false;
@@ -162,6 +336,8 @@ class Zigbee2mqtt extends baseDriverModule {
                   break;
                 default:
                   options[capability.property] = value;
+                // exists = false;
+                // reject({message: `Capability ${command} to device ${params.identifier} not found`});
               }
             }
             if (exists) {
@@ -174,8 +350,8 @@ class Zigbee2mqtt extends baseDriverModule {
         } else if (!params.identifier) {
           switch (command) {
             case 'power':
-              const enableTitle = 'Zigbee: The controller is in pairing mode. Use the instructions for the device you are adding.'
-              const disableTitle = 'Zigbee: Controller pairing mode is disabled.'
+              const enableTitle = 'Zigbee: контроллер переведен в режим сопряжения. Воспользуйтесь инструкцией к добавляемому устройству'
+              const disableTitle = 'Zigbee: режим сопряжения контроллера отключен.'
               this.sendNotify(value ? enableTitle : disableTitle);
               this.mqttPublish('zigbee2mqtt/bridge/request/permit_join', value ? 'true' : false);
               if (value) {
@@ -210,7 +386,7 @@ class Zigbee2mqtt extends baseDriverModule {
   }
 
   mqttPublish(topic: any, value: any) {
-    this.log('publish', topic, value);
+    this.log('publish', topic, typeof value === 'object' ? JSON.stringify(value) : value);
     this.mqtt.publish(topic, typeof value === 'object' ? JSON.stringify(value) : value);
   }
 
@@ -222,10 +398,13 @@ class Zigbee2mqtt extends baseDriverModule {
   }
 
   message(topic: any, message: any) {
+    // this.log('message', topic, message);
     const params = topic.split('/');
     if (params && params.length > 1) {
       let ident: any;
+      let type: any;
       let body: any;
+      let check = true;
       const parse = (result: any, params: any, ident = '') => {
         Object.keys(params).forEach((key) => {
           const newKey = `${ident}${ident ? '/' : ''}${key}`;
@@ -244,6 +423,15 @@ class Zigbee2mqtt extends baseDriverModule {
       }
       if (params[0] === 'zigbee2mqtt') {
         ident = params[1];
+        type = 'zigbee2mqtt';
+        check = false;
+        if (body && body.last_seen) {
+          const status1: any = {};
+          const date = new Date(body.last_seen);
+          const sameDay = new Date().toDateString() === date.toDateString();
+          status1[`info_${ident}`] = `Last seen: ${moment(date).format(`${sameDay ? '' : 'DD.MM.YYYY '}HH:mm:ss`)}`;
+          this.publish(this.eventTypeStatus(this.pluginTemplate.class_name, this.id), status1);
+        }
         if (params[2] === 'availability' && (!body || body.state)) {
           body = {availability: !body ? message : body.state};
           let device = this.availability.find((item) => item.ident === ident);
@@ -267,7 +455,7 @@ class Zigbee2mqtt extends baseDriverModule {
                   ident: 'power',
                   index: index + 1,
                   identifier: availability.ident,
-                  options: {read_only: true, power_on_button_title: 'online', power_off_button_title: 'offline'},
+                  options: {read_only: true, power_on_button_title: 'online', power_off_button_title: 'offline', info: `info_${availability.ident}`},
                   zone_name: dev ? dev.zone_name : '',
                   online: availability.online,
                   display_name: '',
@@ -277,12 +465,15 @@ class Zigbee2mqtt extends baseDriverModule {
                 } else {
                   cap.display_name = availability.ident;
                 }
-                // this.capabilities.push(cap);
+                this.capabilities.push(cap);
               }
               status[`power_${index + 1}`] = availability.online;
             });
             this.sort();
+            // clearTimeout(this.availabilityTimeout);
+            // this.availabilityTimeout = setTimeout(() => {
             this.publish(this.eventTypeStatus(this.pluginTemplate.class_name, this.id), status);
+            // }, 1000);
           };
           if (!this.lastDevicesTimeout || new Date().getTime() - this.lastDevicesTimeout > 60000) {
             if (!this.lastDevicesWorking) {
@@ -333,13 +524,21 @@ class Zigbee2mqtt extends baseDriverModule {
 
                 this.capabilities.forEach(capability => {
                   if (capability.identifier) {
+                    // this.app.log('graph.before', capability.identifier, capability.display_name, graph);
                     graph = graph.replace(`${capability.identifier}|${capability.identifier}`, `${capability.display_name}|${capability.identifier}`);
+                    // this.app.log('graph.after', graph);
                   }
                 });
 
-                graphVizToImgBuffer(graph).then((buffer: string) => {
-                  let b64 = Buffer.from(buffer).toString('base64');
+                graphVizToImgBuffer(graph).then((buffer: unknown) => {
+                  let b64 = Buffer.from(buffer as string).toString('base64');
+                  // fs.writeFileSync("test.png", b64, 'base64')
+                  // const device = this.devices.find((item) => item.identifier === ident);
+                  // if (device) {
+                  //   this.statusEventName = this.eventTypeStatus(device.class_name, `driver-${device.id}`)
+                  // } else {
                   this.statusEventName = this.eventTypeStatus(this.pluginTemplate.class_name, this.id);
+                  // }
                   this.app.log('publish network_map');
                   this.publish(this.statusEventName, {image_1: `data:image/svg+xml;base64,${b64}`});
                 }).catch(e => {
@@ -361,8 +560,12 @@ class Zigbee2mqtt extends baseDriverModule {
         if (device) {
           const setProp = (status: any, capability: any) => {
             if (body[capability.property] !== undefined) {
-              if (capability.value_on !== undefined) {
-                status[`${capability.ident}_${capability.index}`] = body[capability.property] === capability.value_on;
+              if (capability.value_on !== undefined && capability.value_off !== undefined) {
+                if (body[capability.property] === capability.value_on) {
+                  status[`${capability.ident}_${capability.index}`] = true;
+                } else if (body[capability.property] === capability.value_off) {
+                  status[`${capability.ident}_${capability.index}`] = false;
+                }
                 return true;
               } else if (capability.color_xy === true && body[capability.property]) {
                 status[`${capability.ident}_${capability.index}`] = ColorConverter.xyBriToRgb(body[capability.property].x, body[capability.property].y, body.brightness);
@@ -403,6 +606,12 @@ class Zigbee2mqtt extends baseDriverModule {
           }
         }
       }
+      // this.app.log(`${topic} ${message}`, 'device', 'message', type ? type : 'unknown');
+      // if (type && body) {
+      //   this.onDeviceMessage(ident, body, {check});
+      // } else {
+      //   this.app.publish(EventTypes.MqttMessage, topic, message);
+      // }
     }
   }
 
@@ -410,9 +619,20 @@ class Zigbee2mqtt extends baseDriverModule {
     this.app.log('bridgeLog', payload);
     let msg = '';
     switch (payload.type) {
+      // case 'pairing':
+      //   switch (payload.message) {
+      //     case 'interview_successful':
+      //       ident = payload.meta.friendly_name;
+      //       if (!this.devices[ident]) {
+      //         this.onDeviceMessageNewDevice(ident);
+      //       }
+      //       this.devices[ident].name = `${payload.meta.description} (${ident})`;
+      //       break;
+      //   }
+      //   break;
       case 'device_announce':
       case 'device_announced':
-        msg = `Device ${payload.message.friendly_name} announced`;
+        // msg = `Device ${payload.message.friendly_name} announced`;
         break;
       case 'device_connected':
         msg = `Device ${payload.message.friendly_name} connected`;
@@ -465,6 +685,16 @@ class Zigbee2mqtt extends baseDriverModule {
       case 'devices':
         break;
       case 'zigbee_publish_error':
+        // let device_id = null;
+        // if (payload.meta && payload.meta.friendly_name) {
+        //   Object.keys(this.app.devices).forEach(key => {
+        //     if (this.app.devices[key].getParam('parent_id') === this.dbDevice.id && this.app.devices[key].getParam('identifier') === payload.meta.friendly_name) {
+        //       device_id = this.app.devices[key].dbDevice.id;
+        //     }
+        //   });
+        // }
+        // this.emit('new-event', payload.message, 'zigbee_publish_error', this.app._models.events.kinds.KIND_ERROR,
+        //   null, payload.message, device_id);
         break;
       default:
         this.app.log(payload);
@@ -474,7 +704,7 @@ class Zigbee2mqtt extends baseDriverModule {
     }
   }
 
-  parseDevices(body: any) {
+  async parseDevices(body: any) {
     if (body && body.length) {
       const coordinator = body.find((item: any) => item.type === 'Coordinator');
       if (coordinator) {
@@ -485,6 +715,7 @@ class Zigbee2mqtt extends baseDriverModule {
           coordinator1.devices = body;
         }
       }
+      // const keys = Object.keys(this.app.drivers.drivers);
       body.forEach((device: any) => {
         const identifier = device.friendly_name ? device.friendly_name : device.ieeeAddr;
         let model = device.model ? device.model : (device.definition ? device.definition.model : null);
@@ -492,19 +723,23 @@ class Zigbee2mqtt extends baseDriverModule {
           if (model === 'RR620ZB') {
             model = 'MG-ZG02W'
           }
-          const deviceTemplate = this.converters.devices.find((item: any) => item.model === model ||
-            (item.whiteLabel && item.whiteLabel.find((item1: any) => item1.model === model)));
-          this.parseDevice(identifier, device, deviceTemplate);
+          const devices = this.converters.devices ? this.converters.devices : this.converters.definitions;
+          if (devices) {
+            const deviceTemplate = devices.find((item: any) => item.model === model ||
+              (item.whiteLabel && item.whiteLabel.find((item1: any) => item1.model === model)));
+            this.parseDevice(identifier, device, deviceTemplate);
+          }
         }
       });
     }
   }
 
-  parseDevice(identifier: any, device: any, deviceTemplate: any) {
+  async parseDevice(identifier: any, device: any, deviceTemplate: any) {
     if (deviceTemplate) {
       let icon: string;
       const capabilities: any[] = [];
       const log = (type: any, feature: any, template: any) => {
+        // const ident = `${type}_${feature.name}`;
         if (!this.logCapability.find((item) => item.type === type && item.name === feature.name)) {
           this.logCapability.push({
             type,
@@ -571,6 +806,8 @@ class Zigbee2mqtt extends baseDriverModule {
               if (feature.access === 1) {
                 ident = 'text';
               } else {
+                // capability.value_min = feature.value_min;
+                // capability.value_max = feature.value_max;
                 capability.options = {minValue: feature.value_min, maxValue: feature.value_max};
                 if (feature.value_step) {
                   capability.options.stepValue = feature.value_step;
@@ -632,6 +869,7 @@ class Zigbee2mqtt extends baseDriverModule {
                 capability.options = {};
               }
               capability.options['actions'] = actions;
+              capability.options['force'] = true;
               break;
           }
         };
@@ -639,99 +877,211 @@ class Zigbee2mqtt extends baseDriverModule {
         this.app.log(`Check TRY: ${expose.type}_${feature.name}`);
         switch (`${expose.type}_${feature.name}`) {
           case 'binary_alarm':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Turn the device automatically off when attached device consumes less than 2W for 20 minutes
           case 'binary_auto_off':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Indicates if the battery of this device is almost empty
           case 'binary_battery_low':
             setIdent('text');
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Enable buzzer feedback
           case 'binary_buzzer_feedback':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
           case 'binary_calibration':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // The dimmer is capable of replacing the built-in, default dimming curve.
           case 'binary_capabilities_configurable_curve':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // The dimmer supports AC forward phase control.
           case 'binary_capabilities_forward_phase_control':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // The dimmer is capable of detecting an output overload and shutting the output off.
           case 'binary_capabilities_overload_detection':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // The dimmer is capable of measuring the reactanceto distinguish inductive and capacitive loads.
           case 'binary_capabilities_reactance_discriminator':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // The dimmer supports AC reverse phase control.
           case 'binary_capabilities_reverse_phase_control':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Indicates if CO (carbon monoxide) is detected
           case 'binary_carbon_monoxide':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Indicates whether device is physically attached. Device does not have to pull power or even be connected electrically (switch can be ON even if switch is OFF).
           case 'binary_consumer_connected':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Indicates if the contact is closed (= true) or open (= false)
           case 'binary_contact':
             setIdent('magnet');
             break;
+          // Enable ABC (Automatic Baseline Correction)
           case 'binary_enable_abc':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Indicates whether the device detected gas
           case 'binary_gas':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
           case 'binary_humidity_alarm':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Enabling prevents both relais being on at the same time
           case 'binary_interlock':
             setIdent('power');
             break;
           case 'binary_led':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Enable/disable the LED at night
           case 'binary_led_disabled_night':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Enabled LED
           case 'binary_led_enable':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Enable LED feedback
           case 'binary_led_feedback':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
           case 'binary_led_state':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
           case 'binary_motor_reversal':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
           case 'binary_moving':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Indicates whether the device detected occupancy
           case 'binary_occupancy':
             setIdent('motion');
             break;
+          // Enable PIR sensor
           case 'binary_pir_enable':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Enable/disable the power alarm
           case 'binary_power_alarm':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
           case 'binary_power_alarm_active':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Enable/disable the power outage memory, this recovers the on/off mode after power failure
           case 'binary_power_outage_memory':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Indicates whether the device detected presence
           case 'binary_presence':
             setIdent('motion');
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Enabled reporting
           case 'binary_reporting_enable':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
           case 'binary_reverse':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          case 'binary_running':
+            setIdent('input');
+            break;
+          // Indicates whether the device detected smoke
           case 'binary_smoke':
             setIdent('smoke');
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // SOS alarm
           case 'binary_sos':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
           case 'binary_state':
             setIdent('power');
             break;
+          // The dimmer's reactance discriminator had detected a capacitive load.
           case 'binary_status_capacitive_load':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // The dimmer is currently operating in AC forward phase control mode.
           case 'binary_status_forward_phase_control':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // The dimmer's reactance discriminator had detected an inductive load.
           case 'binary_status_inductive_load':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // The output is currently turned off, because the dimmer has detected an overload.
           case 'binary_status_overload':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // The dimmer is currently operating in AC reverse phase control mode.
           case 'binary_status_reverse_phase_control':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Indicates whether the device is tampered
           case 'binary_tamper':
             setIdent('tamper');
             break;
           case 'binary_temperature_alarm':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Indicates whether the device detected vibration
           case 'binary_vibration':
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
+          // Indicates whether the device detected a water leak
           case 'binary_water_leak':
             setIdent('leak');
             break;
@@ -781,147 +1131,228 @@ class Zigbee2mqtt extends baseDriverModule {
             break;
           case 'composite_warning':
             break;
+          // Position of this cover
           case 'cover_position':
             setIdent('range', 'view_column');
             break;
           case 'cover_state':
             setIdent('power', 'view_column');
+            capability.options = {power_on_button_title: 'откр', power_off_button_title: 'закр'}
             homekit = true;
             yandex = true;
             sber = true;
             break;
+          // Tilt of this cover
           case 'cover_tilt':
             break;
+          // Triggered action (e.g. a button click)
           case 'enum_action':
             setIdent('mode');
             break;
           case 'enum_backlight_mode':
+            // capability.values = feature.values;
             break;
           case 'enum_battery_state':
+            // capability.values = feature.values;
             break;
           case 'enum_beep':
+            // capability.values = feature.values;
             break;
+          // switch: allow on/off, auto will use wired action via C1/C2 on contactor for example with HC/HP
           case 'enum_device_mode':
+            // capability.values = feature.values;
             break;
+          // Triggers an effect on the light (e.g. make light blink for a few seconds)
           case 'enum_effect':
             setIdent('mode');
+            // capability.values = feature.values;
             break;
+          // Force the valve position
           case 'enum_force':
             setIdent('mode');
             break;
+          // PIR keep time in seconds
           case 'enum_keep_time':
+            // capability.values = feature.values;
             break;
           case 'enum_key_state':
+            // capability.values = feature.values;
             break;
           case 'enum_melody':
+            // capability.values = feature.values;
             break;
+          // Configures the dimming technique.
           case 'enum_mode_phase_control':
+            // capability.values = feature.values;
             break;
           case 'enum_motion_sensitivity':
+            // capability.values = feature.values;
             break;
           case 'enum_moving':
+            // capability.values = feature.values;
             break;
+          // Operation mode, select "command" to enable bindings (wake up the device before changing modes!)
           case 'enum_operation_mode':
+            // capability.values = feature.values;
             break;
+          // Controls the behaviour when the device is powered on
           case 'enum_power_on_behavior':
+            // capability.values = feature.values;
             break;
+          // Recover state after power outage
           case 'enum_power_outage_memory':
+            // capability.values = feature.values;
             break;
           case 'enum_selftest':
+            // capability.values = feature.values;
             break;
           case 'enum_sensitivity':
+            // capability.values = feature.values;
             break;
+          // Type of installed tubes
           case 'enum_sensors_type':
+            // capability.values = feature.values;
             break;
           case 'enum_switch_actions':
+            // capability.values = feature.values;
             break;
           case 'enum_switch_type':
             setIdent('mode');
             break;
           case 'enum_volume':
+            // capability.values = feature.values;
             break;
+          // Week format user for schedule
           case 'enum_week':
             setIdent('mode');
             break;
           case 'fan_undefined':
             break;
+          // Brightness of this light
           case 'light_brightness':
           case 'light_min_brightness':
           case 'light_max_brightness':
             setIdent('range', 'light');
             break;
+          // Color of this light expressed as hue/saturation
           case 'light_color_hs':
             break;
+          // Color temperature of this light
+          // Unit: mired
           case 'light_color_temp':
             setIdent('range', 'light');
             break;
+          // Color temperature after cold power on of this light
+          // Unit: mired
           case 'light_color_temp_startup':
             setIdent('range', 'light');
             break;
+          // Color of this light in the CIE 1931 color space (x/y)
           case 'light_color_xy':
             setIdent('rgb', 'light');
             break;
+          // Configure genLevelCtrl
           case 'light_level_config':
             break;
+          // On/off state of this light
           case 'light_state':
             setIdent('power');
+            // capability.value_on = feature.value_on;
+            // capability.value_off = feature.value_off;
             break;
           case 'lock_state':
             setIdent('power');
             break;
           case 'numeric_action_code':
             break;
+          // Critical radiation level
+          // Unit: μR/h
           case 'numeric_alert_threshold':
             break;
+          // Air quality index
           case 'numeric_aqi':
             break;
+          // Away preset days
           case 'numeric_away_preset_days':
             setIdent('text');
             break;
+          // Away preset temperature
+          // Unit: °C
           case 'numeric_away_preset_temperature':
             setIdent('text');
             break;
+          // Specifies the maximum light output of the ballast
           case 'numeric_ballast_maximum_level':
             break;
+          // Specifies the minimum light output of the ballast
           case 'numeric_ballast_minimum_level':
             break;
+          // Specifies the maximum light output the ballast can achieve.
           case 'numeric_ballast_physical_maximum_level':
             break;
+          // Specifies the minimum light output the ballast can achieve.
           case 'numeric_ballast_physical_minimum_level':
             break;
+          // Remaining battery in %
+          // Unit: %
           case 'numeric_battery':
             setIdent('battery_level');
             break;
+          // Boost time
+          // Unit: s
           case 'numeric_boost_time':
             setIdent('text');
             break;
           case 'numeric_brightness':
             break;
+          // The measured CO2 (carbon monoxide) value
+          // Unit: ppm
           case 'numeric_co2':
             setIdent('co2');
             break;
+          // Comfort temperature
+          // Unit: °C
           case 'numeric_comfort_temperature':
             setIdent('target_temperature');
             break;
+          // Indicates with how many Watts the maximum possible power consumption is exceeded
+          // Unit: W
           case 'numeric_consumer_overload':
             break;
+          // Temperature of the CPU
+          // Unit: °C
           case 'numeric_cpu_temperature':
             break;
+          // Instantaneous measured electrical current
+          // Unit: A
           case 'numeric_current':
             break;
+          // Instantaneous measured electrical current on phase B
+          // Unit: A
           case 'numeric_current_phase_b':
             break;
+          // Instantaneous measured electrical current on phase C
+          // Unit: A
           case 'numeric_current_phase_c':
             break;
+          // Temperature of the device
+          // Unit: °C
           case 'numeric_device_temperature':
             break;
+          // Unit: second
           case 'numeric_duration':
             break;
+          // Eco temperature
+          // Unit: °C
           case 'numeric_eco_temperature':
             setIdent('target_temperature');
             break;
+          // Measured eCO2 value
+          // Unit: ppm
           case 'numeric_eco2':
             break;
+          // Sum of consumed energy
+          // Unit: kWh
           case 'numeric_energy':
             setIdent('power_usage');
             break;
@@ -930,107 +1361,176 @@ class Zigbee2mqtt extends baseDriverModule {
             break;
           case 'numeric_gas_density':
             break;
+          // Measured Hcho value
+          // Unit: µg/m³
           case 'numeric_hcho':
             break;
+          // Measured relative humidity
+          // Unit: %
           case 'numeric_humidity':
             setIdent('humidity', 'humidity_sensor');
             break;
+          // Humidity calibration
           case 'numeric_humidity_calibration':
             break;
+          // Unit: %
           case 'numeric_humidity_max':
             break;
+          // Unit: %
           case 'numeric_humidity_min':
             break;
+          // Adjust humidity
+          // Unit: %
           case 'numeric_humidity_offset':
             break;
+          // Measured illuminance in lux
+          // Unit: lx
           case 'numeric_illuminance':
             setIdent('illuminance');
             break;
+          // Illuminance calibration
           case 'numeric_illuminance_calibration':
             break;
+          // Measured illuminance in lux
+          // Unit: lx
           case 'numeric_illuminance_lux':
             setIdent('illuminance');
             break;
+          // Link quality (signal strength)
+          // Unit: lqi
           case 'numeric_linkquality':
             setIdent('text');
             break;
+          // Current temperature measured on the device
+          // Unit: °C
           case 'numeric_local_temperature':
             break;
+          // Maximum temperature
+          // Unit: °C
           case 'numeric_max_temperature':
             setIdent('target_temperature');
             break;
+          // Minimum temperature
+          // Unit: °C
           case 'numeric_min_temperature':
             setIdent('target_temperature');
             break;
+          // Time in seconds till occupancy goes to false
+          // Unit: s
           case 'numeric_occupancy_timeout':
             break;
+          // Measured PM10 (particulate matter) concentration
+          // Unit: µg/m³
           case 'numeric_pm10':
             break;
+          // Measured PM2.5 (particulate matter) concentration
+          // Unit: µg/m³
           case 'numeric_pm25':
             break;
+          // Position
+          // Unit: %
           case 'numeric_position':
             setIdent('range');
             break;
+          // Instantaneous measured power
+          // Unit: W
           case 'numeric_power':
             setIdent('power_load');
             break;
+          // The measured atmospheric pressure
+          // Unit: hPa
           case 'numeric_pressure':
             setIdent('atmospheric_pressure');
             break;
+          // Adjust pressure
+          // Unit: hPa
           case 'numeric_pressure_offset':
             break;
+          // Current radiation level
+          // Unit: μR/h
           case 'numeric_radiation_dose_per_hour':
             break;
+          // Current count radioactive pulses per minute
+          // Unit: rpm
           case 'numeric_radioactive_events_per_minute':
             break;
+          // Reporting interval in minutes
           case 'numeric_reporting_time':
             break;
           case 'numeric_requested_brightness_level':
             break;
           case 'numeric_requested_brightness_percent':
             break;
+          // This is applicable if tubes type is set to other
           case 'numeric_sensitivity':
             break;
+          // Count of installed tubes
           case 'numeric_sensors_count':
             break;
           case 'numeric_smoke_density':
             break;
+          // Measured soil moisture value
+          // Unit: %
           case 'numeric_soil_moisture':
             break;
           case 'numeric_strength':
             break;
+          // Measured temperature value
+          // Unit: °C
           case 'numeric_temperature':
             setIdent('temperature');
             homekit = true;
             yandex = true;
             sber = true;
             break;
+          // Measured temperature value
+          // Unit: °C
           case 'numeric_temperature_bme':
             break;
+          // Temperature calibration
           case 'numeric_temperature_calibration':
             break;
+          // Measured temperature value
+          // Unit: °C
           case 'numeric_temperature_ds':
             break;
+          // Unit: °C
           case 'numeric_temperature_max':
             break;
+          // Unit: °C
           case 'numeric_temperature_min':
             break;
+          // Adjust temperature
+          // Unit: °C
           case 'numeric_temperature_offset':
             break;
+          // Warning (LED2) CO2 level
+          // Unit: ppm
           case 'numeric_threshold1':
             break;
+          // Critical (LED3) CO2 level
+          // Unit: ppm
           case 'numeric_threshold2':
             break;
+          // Measured VOC value
+          // Unit: ppb
           case 'numeric_voc':
             setIdent('voc');
             break;
+          // Measured electrical potential value
+          // Unit: V
           case 'numeric_voltage':
             setIdent('voltage');
             break;
+          // Measured electrical potential value on phase B
+          // Unit: V
           case 'numeric_voltage_phase_b':
             break;
+          // Measured electrical potential value on phase C
+          // Unit: V
           case 'numeric_voltage_phase_c':
             break;
+          // On/off state of the switch
           case 'switch_state':
             setIdent('power');
             homekit = true;
@@ -1065,13 +1565,13 @@ class Zigbee2mqtt extends baseDriverModule {
             break;
           default:
             log(expose.type, feature, deviceTemplate);
+          // ident = 'text';
         }
         this.app.log(`Check DONE: ${ident}`);
         if (feature.unit) {
           if (this.pluginTemplate && this.pluginTemplate.units && this.pluginTemplate.units[feature.unit]) {
             capability.scale = this.pluginTemplate.units[feature.unit];
           } else {
-            capability.unit = feature.unit;
           }
         }
         if (ident) {
@@ -1093,37 +1593,46 @@ class Zigbee2mqtt extends baseDriverModule {
           log(expose.type, feature, deviceTemplate);
         }
       };
-      deviceTemplate.exposes.forEach((expose: any, index: any) => {
-        switch (expose.type) {
-          case 'climate':
-          case 'composite':
-          case 'cover':
-          case 'fan':
-          case 'light':
-          case 'lock':
-          case 'switch':
-            if (expose.features) {
-              expose.features.forEach((feature: any, index2: any) => {
-                addFeature(expose, feature, `${index}${index2}`);
-              });
-            }
-            break;
-          case 'binary':
-          case 'enum':
-          case 'numeric':
-          case 'text':
-            addFeature(expose, expose, `${index}0`);
-            break;
-          default:
-            log(expose.type, expose, deviceTemplate);
-        }
-      });
+      let exposes;
+      if (deviceTemplate.exposes && Array.isArray(deviceTemplate.exposes)) {
+        exposes = deviceTemplate.exposes
+      } else {
+        exposes = deviceTemplate.exposes();
+      }
+      if (exposes) {
+        exposes.forEach((expose: any, index: any) => {
+          switch (expose.type) {
+            case 'climate':
+            case 'composite':
+            case 'cover':
+            case 'fan':
+            case 'light':
+            case 'lock':
+            case 'switch':
+              if (expose.features) {
+                expose.features.forEach((feature: any, index2: any) => {
+                  addFeature(expose, feature, `${index}${index2}`);
+                });
+              }
+              break;
+            case 'binary':
+            case 'enum':
+            case 'numeric':
+            case 'text':
+              addFeature(expose, expose, `${index}0`);
+              break;
+            default:
+              log(expose.type, expose, deviceTemplate);
+          }
+        });
+      }
       if (capabilities.length && identifier) {
-        const add = (identifier: string, capabilities: any, parent_identifier: string = null, child_name: string = null) => {
+        const add = (identifier: string, capabilities: any, parent_identifier: string | null = null, child_name: string | null = null) => {
           const params: any = {
             icon,
             identifier,
             capabilities,
+            manufacturer: deviceTemplate.vendor
           };
           if (parent_identifier) {
             params['parent_identifier'] = parent_identifier;
@@ -1188,6 +1697,62 @@ class Zigbee2mqtt extends baseDriverModule {
   deleteDevice(params: any) {
     this.mqttPublish('zigbee2mqtt/bridge/request/device/remove', {id: params.identifier, force: true});
   }
+
+  searchSerialDevices(keywords: string[]) {
+    const fs = require('fs');
+    const path = require('path');
+    const directory = '/dev/serial/by-id';
+
+    const devices: any = [];
+
+    try {
+      const files = fs.readdirSync(directory);
+      files.forEach((file: any) => {
+        const linkPath = path.join(directory, file);
+        try {
+          let realPath = fs.readlinkSync(linkPath);
+          realPath = realPath.replace(/..\/../g, '/dev');
+          const formattedDeviceName = file.replace(/_/g, ' ');
+          if (keywords.some(keyword => formattedDeviceName.includes(keyword))) {
+            devices.push({
+              id: realPath,
+              title: formattedDeviceName
+            });
+          }
+        } catch (error) {
+          console.error(`Error processing symbolic link: ${linkPath}`);
+        }
+      });
+    } catch (err) {
+      console.error(`Error reading directory: ${directory}`);
+    }
+
+    console.log('***Serial-Devices***');
+    console.log(devices);
+
+    return devices;
+  }
+
+  getAdapterByPort(port: string) {
+    const devices = this.searchSerialDevices(['Zigbee', 'Dongle']);
+    const device = devices.find((item: any) => item.id === port);
+    if (device) {
+      this.log('getAdapterByPort', 'device', port, device);
+
+      const ember_substrings = ["Sonoff", "Zigbee", "Dongle", "V2"];
+      const check_ember = ember_substrings.every(substring => device.title.includes(substring));
+
+      if (this.logging) {
+        this.log('getAdapterByPort', 'check_ember', check_ember);
+      }
+
+      if (check_ember) {
+        return 'ember';
+      }
+    }
+
+    return null;
+  }
 }
 
 process.on('uncaughtException', (err) => {
@@ -1196,3 +1761,7 @@ process.on('uncaughtException', (err) => {
 
 const app = new Zigbee2mqtt();
 app.logging = true;
+// app.initDevice({params: {mqtt_address: '192.168.1.152', port: ''}}).then(() => {
+//   app.connect({}).then(() => {
+//   });
+// });
