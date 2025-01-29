@@ -1698,48 +1698,79 @@ class Zigbee2mqtt extends baseDriverModule {
     this.mqttPublish('zigbee2mqtt/bridge/request/device/remove', {id: params.identifier, force: true});
   }
 
-  searchSerialDevices(keywords: string[]) {
-    const fs = require('fs');
-    const path = require('path');
-    const directory = '/dev/serial/by-id';
-
+  async searchSerialDevices() {
     const devices: any = [];
 
-    try {
-      const files = fs.readdirSync(directory);
-      files.forEach((file: any) => {
-        const linkPath = path.join(directory, file);
-        try {
-          let realPath = fs.readlinkSync(linkPath);
-          realPath = realPath.replace(/..\/../g, '/dev');
-          const formattedDeviceName = file.replace(/_/g, ' ');
-          if (keywords.some(keyword => formattedDeviceName.includes(keyword))) {
-            devices.push({
-              id: realPath,
-              title: formattedDeviceName
-            });
-          }
-        } catch (error) {
-          console.error(`Error processing symbolic link: ${linkPath}`);
-        }
-      });
-    } catch (err) {
-      console.error(`Error reading directory: ${directory}`);
-    }
+    const manufacturers = [
+      "texas instruments",
+      "ti",
+      "silicon labs",
+      "silicon labs cp210x",
+      "cp210x",
+      "cp2102",
+      "cp2104",
+      "dresden elektronik ingenieurtechnik gmbh",
+      "dresden elektronik",
+      "tube's zb coordinator",
+      "tube's zigbee",
+      "nortek",
+      "gocontrol",
+      "nortek security & control",
+      "itead",
+      "sonoff",
+      "electrolama",
+      "zzh",
+      "ikea",
+      "ikea of sweden",
+      "aeotec",
+      "aeon labs",
+      "phoscon"
+    ];
 
-    console.log('***Serial-Devices***');
-    console.log(devices);
+    const vendors = [
+      "0451", // Texas Instruments (TI)
+      "10c4", // Silicon Labs
+      "1cf1", // Dresden Elektronik (ConBee)
+      "1a86", // Electrolama (zzh) and other devices based on CH340
+      "0403", // FTDI (used in some Zigbee devices)
+      "0681", // Tube's Zigbee Gateways
+      "0658", // Nortek (Zigbee + Z-Wave USB sticks)
+      "0457", // ITEAD (Sonoff Zigbee USB Dongle)
+      "04d8", // IKEA TRÅDFRI USB Gateway
+      "037a", // Aeotec
+      "16c0"  // Some custom Zigbee devices
+    ]
 
+    const {SerialPort} = require('serialport');
+    const ports = await SerialPort.list();
+
+    console.log('Serial devices:');
+
+    ports.forEach((port: any) => {
+      console.log(`- port: ${port.path}, manufacturer: ${port.manufacturer}, vendorId: ${port.vendorId}`);
+
+      const manufacturer = port.manufacturer ? port.manufacturer.toLowerCase() : '';
+      const vendorId = port.vendorId ? port.vendorId.toLowerCase() : '';
+
+      if (manufacturers.includes(manufacturer) || vendors.includes(vendorId)) {
+        devices.push({
+          id: port.path,
+          title: `${port.path}, ${port.manufacturer}, ${port.vendorId}`,
+        });
+      }
+    });
+
+    console.log('Filtered devices:', devices);
     return devices;
   }
 
   getAdapterByPort(port: string) {
-    const devices = this.searchSerialDevices(['Zigbee', 'Dongle']);
+    const devices: any = this.searchSerialDevices();
     const device = devices.find((item: any) => item.id === port);
     if (device) {
       this.log('getAdapterByPort', 'device', port, device);
 
-      const ember_substrings = ["Sonoff", "Zigbee", "Dongle", "V2"];
+      const ember_substrings = ["10c4", "0457"];
       const check_ember = ember_substrings.every(substring => device.title.includes(substring));
 
       if (this.logging) {
