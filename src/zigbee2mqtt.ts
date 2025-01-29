@@ -28,7 +28,7 @@ class Zigbee2mqtt extends baseDriverModule {
       return resolve({});
     }
 
-    super.initDeviceEx(() => {
+    super.initDeviceEx(async () => {
       this.capabilities = [];
       this.capabilities.push({
         ident: 'power',
@@ -85,7 +85,7 @@ class Zigbee2mqtt extends baseDriverModule {
           }
 
           settings.set(['serial', 'port'], this.params.port);
-          const adapter = this.getAdapterByPort(this.params.port);
+          const adapter = await this.getAdapterByPort(this.params.port);
           
           if (adapter) {
             settings.set(['serial', 'adapter'], adapter);
@@ -1764,14 +1764,19 @@ class Zigbee2mqtt extends baseDriverModule {
     return devices;
   }
 
-  getAdapterByPort(port: string) {
-    const devices: any = this.searchSerialDevices();
+  async getAdapterByPort(port: string) {
+    this.log('Find adapter', port);
+    const devices: any = await this.searchSerialDevices();
+    this.log('Devices', devices);
+
     const device = devices.find((item: any) => item.id === port);
+    this.log('Device', device);
+
     if (device) {
       this.log('getAdapterByPort', 'device', port, device);
 
       const ember_substrings = ["10c4", "0457"];
-      const check_ember = ember_substrings.every(substring => device.title.includes(substring));
+      const check_ember = ember_substrings.some(substring => device.title.includes(substring));
 
       if (this.logging) {
         this.log('getAdapterByPort', 'check_ember', check_ember);
@@ -1784,6 +1789,27 @@ class Zigbee2mqtt extends baseDriverModule {
 
     return null;
   }
+
+  // getAdapterByPort(port: string) {
+  //   const devices: any = this.searchSerialDevices();
+  //   const device = devices.find((item: any) => item.id === port);
+  //   if (device) {
+  //     this.log('getAdapterByPort', 'device', port, device);
+
+  //     const ember_substrings = ["10c4", "0457"];
+  //     const check_ember = ember_substrings.every(substring => device.title.includes(substring));
+
+  //     if (this.logging) {
+  //       this.log('getAdapterByPort', 'check_ember', check_ember);
+  //     }
+
+  //     if (check_ember) {
+  //       return 'ember';
+  //     }
+  //   }
+
+  //   return null;
+  // }
 }
 
 process.on('uncaughtException', (err) => {
