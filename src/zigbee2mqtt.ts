@@ -1789,27 +1789,6 @@ class Zigbee2mqtt extends baseDriverModule {
 
     return null;
   }
-
-  // getAdapterByPort(port: string) {
-  //   const devices: any = this.searchSerialDevices();
-  //   const device = devices.find((item: any) => item.id === port);
-  //   if (device) {
-  //     this.log('getAdapterByPort', 'device', port, device);
-
-  //     const ember_substrings = ["10c4", "0457"];
-  //     const check_ember = ember_substrings.every(substring => device.title.includes(substring));
-
-  //     if (this.logging) {
-  //       this.log('getAdapterByPort', 'check_ember', check_ember);
-  //     }
-
-  //     if (check_ember) {
-  //       return 'ember';
-  //     }
-  //   }
-
-  //   return null;
-  // }
 }
 
 process.on('uncaughtException', (err) => {

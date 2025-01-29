@@ -18,6 +18,7 @@ module.exports = {
         "zigbee-herdsman",
         "zigbee-herdsman-converters",
         "svg2img",
+        "serialport",
         "viz.js"
       ].indexOf(request) !== -1) {
         return callback(null, `require('${request}')`);
