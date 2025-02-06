@@ -16,7 +16,7 @@ export const baseModule = toExtendable(class baseModule extends EventEmitter {
     if (this.loadConfig) {
       this.config = eval(`require('${process.cwd()}/config/config')`);
     }
-    this.ipc = require('node-ipc');
+    this.ipc = require('node-ipc').default;
 
     this.ipc.config.id = this.id;
     this.ipc.config.retry = 1500;
