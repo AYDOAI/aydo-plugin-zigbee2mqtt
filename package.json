@@ -50,6 +50,7 @@
     "source-map-support": "^0.5.21",
     "svg2img": "^1.0.0-beta.2",
     "throttleit": "^2.1.0",
+    "unix-dgram": "^2.0.6",
     "uri-js": "^4.4.1",
     "utf-8-validate": "^5.0.2",
     "uuid": "^8.3.2",
