@@ -1,5 +1,4 @@
 homeassistant: false
-availability: true
 frontend: true
 
 # MQTT settings
@@ -16,6 +15,11 @@ mqtt:
 serial:
     # Location of CC2531 USB sniffer
     port: /dev/ttyACM0
+
+availability:
+    enabled: true
+    active:
+        timeout: 10
 
 # Advanced settings
 advanced:
