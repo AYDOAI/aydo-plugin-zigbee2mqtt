@@ -78,6 +78,8 @@ class Zigbee2mqtt extends baseDriverModule {
         settings.set(['frontend'], true);
         settings.set(['mqtt', 'base_topic'], 'zigbee2mqtt');
         settings.set(['mqtt', 'server'], 'mqtt://localhost');
+        settings.set(['availability', 'enabled'], true);
+        settings.set(['availability', 'active', 'timeout'], 10);
 
         if (this.params.port) {
           if (this.logging) {
