@@ -1777,7 +1777,7 @@ class Zigbee2mqtt extends baseDriverModule {
     if (device) {
       this.log('getAdapterByPort', 'device', port, device);
 
-      const ember_substrings = ["10c4", "0457"];
+      const ember_substrings = ["10c4", "0457", "1a86"];
       const check_ember = ember_substrings.some(substring => device.title.includes(substring));
 
       if (this.logging) {
