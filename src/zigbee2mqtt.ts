@@ -434,10 +434,6 @@ class Zigbee2mqtt extends baseDriverModule {
           status1[`info_${ident}`] = `Last seen: ${moment(date).format(`${sameDay ? '' : 'DD.MM.YYYY '}HH:mm:ss`)}`;
           this.publish(this.eventTypeStatus(this.pluginTemplate.class_name, this.id), status1);
         }
-        if(topic === 'zigbee2mqtt/bridge/state') {
-          this.publish(this.eventTypeStatus(this.pluginTemplate.class_name, this.id),
-              {connected: message === 'online'});
-        }
         if (params[2] === 'availability' && (!body || body.state)) {
           body = {availability: !body ? message : body.state};
           let device = this.availability.find((item) => item.ident === ident);
