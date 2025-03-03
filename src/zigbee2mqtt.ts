@@ -1702,6 +1702,7 @@ class Zigbee2mqtt extends baseDriverModule {
 
   deleteDevice(params: any) {
     this.mqttPublish('zigbee2mqtt/bridge/request/device/remove', {id: params.identifier, force: true});
+    this.mqttPublish('zigbee2mqtt/bridge/request/permit_join', 'false');
   }
 
   async searchSerialDevices() {
