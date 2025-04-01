@@ -33,6 +33,37 @@
       "required": true
     },
     {
+      "key": "adapter",
+      "name": "Adapter",
+      "type": "select",
+      "items": [
+        {
+          "id": "deconz",
+          "title": "deconz"
+        },
+        {
+          "id": "zstack",
+          "title": "zstack"
+        },
+        {
+          "id": "zigate",
+          "title": "zigate"
+        },
+        {
+          "id": "ezsp",
+          "title": "ezsp"
+        },
+        {
+          "id": "auto",
+          "title": "auto"
+        },
+        {
+          "id": "ember",
+          "title": "ember"
+        }
+      ]
+    },
+    {
       "key": "mqtt_address",
       "name": "MQTT Address",
       "type": "text",
