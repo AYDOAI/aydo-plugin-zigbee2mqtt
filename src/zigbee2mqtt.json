@@ -36,6 +36,7 @@
       "key": "adapter",
       "name": "Adapter",
       "type": "select",
+      "defaultValue": "auto",
       "items": [
         {
           "id": "deconz",
