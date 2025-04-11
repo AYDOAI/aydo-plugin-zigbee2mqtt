@@ -1,6 +1,6 @@
 {
   "name": "zigbee2mqtt",
-  "version": "1.36.6",
+  "version": "1.36.7",
   "description": "Aydo to Zigbee2MQTT bridge",
   "main": "index.js",
   "repository": {
