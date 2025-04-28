@@ -1702,6 +1702,11 @@ class Zigbee2mqtt extends baseDriverModule {
 
   deleteDevice(params: any) {
     this.mqttPublish('zigbee2mqtt/bridge/request/device/remove', {id: params.identifier, force: true});
+    setTimeout(() => {
+      this.mqttPublish('zigbee2mqtt/bridge/request/permit_join', 'false');
+    }, 3000);
+    this.devices = this.devices.filter(item => item.identifier !== params.identifier);
+    this.availability = this.availability.filter(item => item.ident !== params.identifier);
   }
 
   async searchSerialDevices() {
@@ -1782,8 +1787,12 @@ class Zigbee2mqtt extends baseDriverModule {
       this.log('Finded device', devicePort, device);
 
       const ember_substrings = ["10c4", "0457", "1a86"];
-      const check_ember_1 = ember_substrings.some(substring => device.vendorId.includes(substring));
-      const check_ember_2 = ["V2"].some(substring => device.pnpId.includes(substring));
+      const check_ember_1 = ember_substrings.some(
+        substring => typeof device.vendorId === 'string' && device.vendorId.includes(substring)
+      );
+      const check_ember_2 = ["V2"].some(
+        substring => typeof device.pnpId === 'string' && device.pnpId.includes(substring)
+      );
 
       if (this.logging) {
         this.log('getAdapterByPort', 'check_ember', check_ember_1, check_ember_2);
