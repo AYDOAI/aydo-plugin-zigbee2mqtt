@@ -1,0 +1,127 @@
+{
+  "name": "Zigbee Coordinator",
+  "type": 1,
+  "icon": "hub",
+  "class_name": "zigbee2mqtt",
+  "module": "zigbee2mqtt",
+  "manufacturer": "Zigbee2mqtt",
+  "mac_address": false,
+  "support_autoupdate": false,
+  "dynamic_capabilities": true,
+  "connect_config": true,
+  "disable_display_sort": true,
+  "display_model": "",
+  "units": {
+    "hPa": "0.1",
+    "mA": 0.001,
+    "mV": 0.001
+  },
+  "commands": [
+    {
+      "command": "push_button_1"
+    },
+    {
+      "command": "push_button_2"
+    }
+  ],
+  "settings": [
+    {
+      "key": "port",
+      "name": "Zigbee Device",
+      "type": "select",
+      "items": [],
+      "required": true
+    },
+    {
+      "key": "adapter",
+      "name": "Adapter",
+      "type": "select",
+      "defaultValue": "auto",
+      "items": [
+        {
+          "id": "deconz",
+          "title": "deconz"
+        },
+        {
+          "id": "zstack",
+          "title": "zstack"
+        },
+        {
+          "id": "zigate",
+          "title": "zigate"
+        },
+        {
+          "id": "ezsp",
+          "title": "ezsp"
+        },
+        {
+          "id": "auto",
+          "title": "auto"
+        },
+        {
+          "id": "ember",
+          "title": "ember"
+        }
+      ]
+    },
+    {
+      "key": "mqtt_address",
+      "name": "MQTT Address",
+      "type": "text",
+      "defaultValue": "127.0.0.1",
+      "unique": true,
+      "required": true
+    },
+    {
+      "key": "mqtt_user",
+      "name": "MQTT User",
+      "type": "text",
+      "defaultValue": "mqtt-user",
+      "required": true
+    },
+    {
+      "key": "mqtt_password",
+      "name": "MQTT Password",
+      "type": "text",
+      "defaultValue": "mqtt-pass",
+      "required": true
+    },
+    {
+      "key": "location",
+      "name": "Location",
+      "type": "google-map",
+      "required": true
+    }
+  ],
+  "sub_devices": [
+    {
+      "class_name": "zigbee2mqtt.subdevice",
+      "name": "Zigbee Device",
+      "mac_address": false,
+      "sort_index": 1,
+      "support_autoupdate": false,
+      "dynamic_capabilities": true,
+      "check_last_connect": true,
+      "settings": [
+        {
+          "key": "pair_mode",
+          "name": "Pair mode",
+          "description": "Your controller is in pair device mode. Use your device's instructions to add it.",
+          "type": "button"
+        },
+        {
+          "key": "identifier",
+          "name": "Identifier",
+          "type": "text"
+        }
+      ]
+    }
+  ],
+  "dependencies": {
+    "uri-js": "^4.4.1",
+    "viz.js": "^2.1.2",
+    "zigbee-herdsman": "0.19.0",
+    "zigbee-herdsman-converters": "15.86.1",
+    "zigbee2mqtt-frontend": "0.6.135"
+  }
+}
