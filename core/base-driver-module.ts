@@ -132,6 +132,10 @@ export const baseDriverModule = toExtendable(class baseDriverModule extends base
       name: 'device-sub-devices',
       method: this.subDevices.bind(this)
     });
+    this.events.push({
+      name: 'discover',
+      method: this.discover.bind(this)
+    });
   }
 
   templatesPath(ident: any, name: any = null) {
@@ -295,6 +299,32 @@ export const baseDriverModule = toExtendable(class baseDriverModule extends base
       }, params.zones);
     });
   }
+
+  discover(params: any) {
+    return new Promise((resolve, reject) => {
+      if (typeof this.discoverEx === 'function') {
+        this.discoverEx(params || {}).then((result: any) => {
+          this.ipc.of.app.emit('discover', {id: params.id, result});
+          resolve(result);
+        }).catch((error: any) => {
+          try {
+            console.error('ERROR: discover', JSON.stringify(error));
+          } catch (e) {
+            console.error('ERROR: discover', error);
+          }
+          this.ipc.of.app.emit('discover', {
+            id: params.id,
+            error: {ignore: error ? error.ignore : false, message: error ? error.message : ''}
+          });
+          reject(error);
+        });
+      } else {
+        const error = {message: 'Discover method not implemented'};
+        this.ipc.of.app.emit('discover', {id: params.id, error});
+        reject(error);
+      }
+    });
+  }
   
   installDeviceEx(resolve: any, reject: any) {
     resolve();
@@ -314,6 +344,10 @@ export const baseDriverModule = toExtendable(class baseDriverModule extends base
 
   getSubDevicesEx(resolve: any, reject: any, zones: any) {
     resolve({});
+  }
+
+  discoverEx(params: any) {
+    return Promise.resolve({});
   }
 
   startQueue(ident: any) {
