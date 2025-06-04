@@ -178,7 +178,7 @@ export const baseDriverModule = toExtendable(class baseDriverModule extends base
       const content = fs.readFileSync(file, 'utf8');
       return JSON.parse(content);
     } catch (error) {
-      throw new Error(Failed to load template from ${file}: ${error.message});
+      throw new Error(`Failed to load template from ${file}: ${error.message}`);
     }
   }
 
