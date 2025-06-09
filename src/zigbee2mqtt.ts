@@ -1805,6 +1805,20 @@ class Zigbee2mqtt extends baseDriverModule {
 
     return null;
   }
+
+  async discoverEx(params: any) {
+    const { Controller } = require("zigbee-herdsman");
+
+    const coordinator = new Controller({
+      serialPort: {
+        path: params.port,
+        adapter: params.adapter,
+      },
+      databasePath: "/tmp/zigbee2mqtt.db",
+    });
+
+    await coordinator.start();
+  }
 }
 
 process.on('uncaughtException', (err) => {
