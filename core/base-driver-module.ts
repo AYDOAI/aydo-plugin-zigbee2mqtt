@@ -67,7 +67,7 @@ export const baseDriverModule = toExtendable(class baseDriverModule extends base
     super();
     this.pluginName = process.argv[1].replace(path.extname(process.argv[1]), '.json');
     if (fs.existsSync(this.pluginName)) {
-      this.pluginTemplate = eval(`require('${this.pluginName}')`);
+      this.pluginTemplate = this.loadPluginTemplate(this.pluginName);
     } else {
       this.pluginTemplate = {module: this.id};
     }
@@ -170,6 +170,15 @@ export const baseDriverModule = toExtendable(class baseDriverModule extends base
     } catch (e) {
       console.error(`${path1} ${process.cwd()}`);
       throw e;
+    }
+  }
+
+  loadPluginTemplate(file: string) {
+    try {
+      const content = fs.readFileSync(file, 'utf8');
+      return JSON.parse(content);
+    } catch (error) {
+      throw new Error(`Failed to load template from ${file}: ${error.message}`);
     }
   }
 
