@@ -8,7 +8,6 @@ const moment = require('moment');
 class Zigbee2mqtt extends baseDriverModule {
   mqtt: any;
   coordinators: any[] = [];
-  converters: any;
   logCapability: any[] = [];
   devices: any[] = [];
   availability: any[] = [];
@@ -53,12 +52,6 @@ class Zigbee2mqtt extends baseDriverModule {
         }
       }
 
-      try {
-        this.converters = require('zigbee-herdsman-converters');
-      } catch (e) {
-        this.app.errorEx(e);
-      }
-
       let config: any;
 
       try {
@@ -75,7 +68,7 @@ class Zigbee2mqtt extends baseDriverModule {
 
         settings.set(['permit_join'], false);
         // settings.set(['homeassistant'], false);
-        settings.set(['frontend'], true);
+        settings.set(['frontend', 'enabled'], true);
         settings.set(['mqtt', 'base_topic'], 'zigbee2mqtt');
         settings.set(['mqtt', 'server'], 'mqtt://localhost');
         settings.set(['availability', 'enabled'], true);
@@ -160,7 +153,7 @@ class Zigbee2mqtt extends baseDriverModule {
 
       try {
         this.app.log('Loading controller');
-        const Controller = require('../lib/zigbee2mqtt/controller');
+        const { Controller } = require('../lib/zigbee2mqtt/controller');
         this.app.log('Creating controller');
         this.device = new Controller(() => {
           process.exit();
@@ -284,7 +277,7 @@ class Zigbee2mqtt extends baseDriverModule {
   commandEx(command: any, value: any, params: any, options1: any, resolve: any, reject: any) {
     switch (command) {
       case 'pair_mode':
-        this.mqttPublish('zigbee2mqtt/bridge/request/permit_join', 'true');
+        this.mqttPublish('zigbee2mqtt/bridge/request/permit_join', '{"time": 254}');
         resolve({});
         break;
       case 'update_settings':
@@ -355,12 +348,12 @@ class Zigbee2mqtt extends baseDriverModule {
               const enableTitle = 'Zigbee: контроллер переведен в режим сопряжения. Воспользуйтесь инструкцией к добавляемому устройству'
               const disableTitle = 'Zigbee: режим сопряжения контроллера отключен.'
               this.sendNotify(value ? enableTitle : disableTitle);
-              this.mqttPublish('zigbee2mqtt/bridge/request/permit_join', value ? 'true' : false);
+              this.mqttPublish('zigbee2mqtt/bridge/request/permit_join', value ? '{"time": 254}' : '{"time": 0}');
               if (value) {
                 clearTimeout(this.cancelControllerCommandTimeout);
                 this.cancelControllerCommandTimeout = setTimeout(() => {
                   this.sendNotify(disableTitle);
-                  this.mqttPublish('zigbee2mqtt/bridge/request/permit_join', 'false');
+                  this.mqttPublish('zigbee2mqtt/bridge/request/permit_join', '{"time": 0}');
                   this.publish(this.eventTypeStatus(this.pluginTemplate.class_name, this.id), {power: false});
                 }, 60000);
               }
@@ -436,7 +429,7 @@ class Zigbee2mqtt extends baseDriverModule {
         }
         if(topic === 'zigbee2mqtt/bridge/state') {
           this.publish(this.eventTypeStatus(this.pluginTemplate.class_name, this.id),
-              {connected: message === 'online'});
+              {connected: body.state === 'online'});
         }
         if (params[2] === 'availability' && (!body || body.state)) {
           body = {availability: !body ? message : body.state};
@@ -726,14 +719,8 @@ class Zigbee2mqtt extends baseDriverModule {
         const identifier = device.friendly_name ? device.friendly_name : device.ieeeAddr;
         let model = device.model ? device.model : (device.definition ? device.definition.model : null);
         if (identifier && model) {
-          if (model === 'RR620ZB') {
-            model = 'MG-ZG02W'
-          }
-          const devices = this.converters.devices ? this.converters.devices : this.converters.definitions;
-          if (devices) {
-            const deviceTemplate = devices.find((item: any) => item.model === model ||
-              (item.whiteLabel && item.whiteLabel.find((item1: any) => item1.model === model)));
-            this.parseDevice(identifier, device, deviceTemplate);
+          if(device.definition) {
+            this.parseDevice(identifier, device, device.definition);
           }
         }
       });
@@ -1703,7 +1690,7 @@ class Zigbee2mqtt extends baseDriverModule {
   deleteDevice(params: any) {
     this.mqttPublish('zigbee2mqtt/bridge/request/device/remove', {id: params.identifier, force: true});
     setTimeout(() => {
-      this.mqttPublish('zigbee2mqtt/bridge/request/permit_join', 'false');
+      this.mqttPublish('zigbee2mqtt/bridge/request/permit_join', '{"time": 0}');
     }, 3000);
     this.devices = this.devices.filter(item => item.identifier !== params.identifier);
     this.availability = this.availability.filter(item => item.ident !== params.identifier);
